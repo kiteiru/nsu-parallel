@@ -1,11 +1,9 @@
 #include <iostream>
 #include <math.h>
-#include <chrono>
+#include <ctime>
 
 #define CONVERGENCE 5
 #define NONCONVERGENCE 5
-
-using namespace std::chrono;
 
 void PrintVector(double* vector, int N) {
     for (int i = 0; i < N; i++) {
@@ -137,7 +135,7 @@ int main(int argc, char *argv[]) {
     double result = EndCycleCriteria(A, x, b, bVectorLenght, N);
 
     int amountOfIterations = 0;
-    auto startMeasureTime = system_clock::now();
+    long double startMeasureTime = clock();
     while ((result > e) && (convergentMatrixRepetition < CONVERGENCE)) {
         amountOfIterations++;
         convergentMatrixRepetition = CheckOnRepitition(result, e, convergentMatrixRepetition);
@@ -165,7 +163,7 @@ int main(int argc, char *argv[]) {
             notConvergentMatrixCounter = 0;
         }
     }
-    auto endMeasureTime = system_clock::now();
+    long double endMeasureTime = clock();
 
     if (nonConvergation) {
         std::cout << "Impossible task! Matrix is not convergent!" << std::endl;
@@ -181,8 +179,7 @@ int main(int argc, char *argv[]) {
     PrintVector(x, N);
     std::cout << " x[] " << std::endl << std::endl;
 
-    auto totalTime = duration_cast<nanoseconds>(endMeasureTime - startMeasureTime);
-    std::cout << "Total time is: " << totalTime.count() / double(1000000000) << " seconds" << std::endl;
+    std::cout << "Total time is: " << (endMeasureTime - startMeasureTime) / 1000000 << " seconds" << std::endl;
     std::cout << "Iterations: " << amountOfIterations + 1 << std::endl;
     delete[](u);
     delete[](ty);
