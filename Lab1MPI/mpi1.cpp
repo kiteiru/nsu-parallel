@@ -18,7 +18,7 @@ void FillVectorWithZero(double* vector, int N) {
 }
 
 void MatrixAndVectorMultiplication(double* A, double* B, double* C, int N, int sizePerProcess) {
-    double* vector = (double*)malloc(sizePerProcess * sizeof(double));
+    auto* vector = new double[sizePerProcess];
     for (int i = 0; i < sizePerProcess; i++) {
         vector[i] = 0;
         for (int j = 0; j < N; j++) {
@@ -40,8 +40,7 @@ double ScalarVectorsMultiplication(double* A, double* B, int sizePerProcess, int
 }
 
 void ScalarAndVectorMultiplication(double A, double* B, double* C, int N, int sizePerProcess, int rank) {
-    double* vector = (double*)malloc(N * sizeof(double));
-    //std::fill(vector, vector + N, 0);
+    auto* vector = new double[N];
     FillVectorWithZero(vector, N);
     for (int i = sizePerProcess * rank; i < sizePerProcess * rank + sizePerProcess; i++) {
         vector[i] = A * B[i];
@@ -51,8 +50,7 @@ void ScalarAndVectorMultiplication(double A, double* B, double* C, int N, int si
 }
 
 void VectorsSubstruction(double* A, double* B, double* C, int N, int sizePerProcess, int rank) {
-    double* vector = (double*)malloc(N * sizeof(double));
-    //std::fill(vector, vector + N, 0);
+    auto* vector = new double[N];
     FillVectorWithZero(vector, N);
     for (int i = sizePerProcess * rank; i < sizePerProcess * rank + sizePerProcess; i++) {
         vector[i] = A[i] - B[i];
@@ -158,7 +156,6 @@ int main(int argc, char *argv[]) {
     }
 
     bVectorLenght = SquaresSum(b, N);
-    //std::fill(x, x + N, 0);//x_0 = {0};
     FillVectorWithZero(x, N); //x_0 = {0};
 
 
