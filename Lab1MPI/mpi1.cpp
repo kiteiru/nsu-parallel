@@ -138,9 +138,13 @@ int main(int argc, char *argv[]) {
     FillMatrixA(A, N, sizePerProcess, rank);
     PrintMatrixA(A, N, sizePerProcess);
 
+
+    for (int i = 0; i < N; i++) {
+        u[i] = sin((2 * 3.14159 * i) / N);
+    }
+
     if (rank == 0) {
         for (int i = 0; i < N; i++) {
-            u[i] = sin((2 * 3.14159 * i) / N);
             std::cout << u[i] << " ";
         }
         std::cout << " u[]" << std::endl << std::endl;

@@ -121,9 +121,9 @@ int main(int argc, char *argv[]) {
 
     for (int i = 0; i < N; i++) {
         u[i] = sin((2 * 3.14159 * i) / N);
-        //std::cout << u[i] << " ";
+        std::cout << u[i] << " ";
     }
-    //std::cout << " u[]" << std::endl << std::endl;
+    std::cout << " u[]" << std::endl << std::endl;
 
     MatrixAndVectorMultiplication(A, u, b, N);
 
@@ -178,8 +178,8 @@ int main(int argc, char *argv[]) {
         delete[](A);
         return 0;
     }
-    //PrintVector(x, N);
-    //std::cout << " x[] " << std::endl << std::endl;
+    PrintVector(x, N);
+    std::cout << " x[] " << std::endl << std::endl;
 
     auto totalTime = duration_cast<nanoseconds>(endMeasureTime - startMeasureTime);
     std::cout << "Total time is: " << totalTime.count() / double(1000000000) << " seconds" << std::endl;
