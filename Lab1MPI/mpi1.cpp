@@ -85,8 +85,8 @@ double EndCycleCriteria(double* A, double* x, double* b, double bVectorLenght, i
     return result;
 }
 
-void PrintMatrixA(double* A, int N, int sizePerProcess) {
-    for (int i = 0; i < sizePerProcess; i++) {
+void PrintMatrixA(double* A, int N) {
+    for (int i = 0; i < N; i++) {
         for (int j = 0; j < N; j++) {
             std::cout << A[i * N + j] << " ";
         }
@@ -95,10 +95,10 @@ void PrintMatrixA(double* A, int N, int sizePerProcess) {
     std::cout << " A[] " << std::endl << std::endl;;
 }
 
-void FillMatrixA(double *A, int N, int sizePerProcess, int rank) {
-    for (int i = 0; i < sizePerProcess; i++) {
+void FillMatrixA(double *A, int N) {
+    for (int i = 0; i < N; i++) {
         for (int j = 0; j < N; j++) {
-            if (i + (sizePerProcess * rank) == j) {
+            if (i == j) {
                 A[i * N + j] = 2;
             }
             else {
@@ -116,6 +116,7 @@ int main(int argc, char *argv[]) {
     MPI_Comm_size(MPI_COMM_WORLD, &size); //Получение числа процессов
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //Получение номера процесса
     int sizePerProcess = N / size;
+    auto* matrix = new double[N * N];
     auto* A = new double[sizePerProcess * N];
     auto* x = new double[N];
     auto* b = new double[N];
@@ -133,9 +134,12 @@ int main(int argc, char *argv[]) {
     double bVectorLenght = 0;
     bool nonConvergation;
 
-    FillMatrixA(A, N, sizePerProcess, rank);
-    PrintMatrixA(A, N, sizePerProcess);
+    if (rank == 0) {
+        FillMatrixA(matrix, N);
+        PrintMatrixA(matrix, N);
+    }
 
+    MPI_Scatter(matrix, sizePerProcess * N, MPI_DOUBLE, A, sizePerProcess * N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
     for (int i = 0; i < N; i++) {
         u[i] = sin((2 * 3.14159 * i) / N);
