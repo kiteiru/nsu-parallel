@@ -7,8 +7,6 @@ include_directories($ENV{MSMPI_INC})
 message(STATUS $ENV{MSMPI_INC})
 find_package(MPI REQUIRED)
 
-
-
 #SET(CMAKE_C_COMPILER mpicc)
 #SET(CMAKE_CXX_COMPILER mpicxx)
 
