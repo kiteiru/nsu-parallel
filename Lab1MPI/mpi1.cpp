@@ -5,108 +5,81 @@
 #define CONVERGENCE 5
 #define NONCONVERGENCE 5
 
-void PrintVector(double* vector, int N) {
+void PrintVec(double* vector, int N) {
     for (int i = 0; i < N; i++) {
         std::cout << vector[i] << " ";
     }
 }
 
-void FillVectorWithZero(double* vector, int N) {
-    for (int i = 0; i < N; i++) {
-        vector[i] = 0;
-    }
-}
-
-void MatrixAndVectorMultiplication(double* A, double* B, double* C, int N, int sizePerProcess) {
-    auto* vector = new double[sizePerProcess];
-    for (int i = 0; i < sizePerProcess; i++) {
+void MatVecMul(double* A, double* B, double* C, int N, int* linePerProc, int* startPoints, int rank) {
+    auto* vector = new double[linePerProc[rank]];
+    for (int i = 0; i < linePerProc[rank]; i++) {
         vector[i] = 0;
         for (int j = 0; j < N; j++) {
             vector[i] += A[i * N + j] * B[j];
         }
     }
-    MPI_Allgather(vector, sizePerProcess, MPI_DOUBLE, C, sizePerProcess, MPI_DOUBLE, MPI_COMM_WORLD);
+    MPI_Allgatherv(vector, linePerProc[rank], MPI_DOUBLE, C, linePerProc, startPoints, MPI_DOUBLE, MPI_COMM_WORLD);
     delete[](vector);
 }
 
-double ScalarVectorsMultiplication(double* A, double* B, int sizePerProcess, int rank) {
+double ScalProduct(double* A, double* B, int* linePerProc, int* startPoints, int rank) {
     double partialSum = 0;
     double C;
-    for (int i = sizePerProcess * rank; i < sizePerProcess * rank + sizePerProcess; i++) {
+    for (int i = startPoints[rank]; i < startPoints[rank] + linePerProc[rank]; i++) {
         partialSum += A[i] * B[i];
     }
     MPI_Allreduce(&partialSum, &C, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     return C;
 }
 
-void ScalarAndVectorMultiplication(double A, double* B, double* C, int N, int sizePerProcess, int rank) {
+void VecByNumMul(double A, double* B, double* C, int N, int* linePerProc, int* startPoints, int rank) {
     auto* vector = new double[N];
-    FillVectorWithZero(vector, N);
-    for (int i = sizePerProcess * rank; i < sizePerProcess * rank + sizePerProcess; i++) {
+    std::fill(vector, vector + N, 0);
+    for (int i = startPoints[rank]; i < startPoints[rank] + linePerProc[rank]; i++) {
         vector[i] = A * B[i];
     }
     MPI_Allreduce(vector, C, N, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     delete[](vector);
 }
 
-void VectorsSubstruction(double* A, double* B, double* C, int N, int sizePerProcess, int rank) {
+void VecSub(double* A, double* B, double* C, int N, int* linePerProc, int* startPoints, int rank) {
     auto* vector = new double[N];
-    FillVectorWithZero(vector, N);
-    for (int i = sizePerProcess * rank; i < sizePerProcess * rank + sizePerProcess; i++) {
+    std::fill(vector, vector + N, 0);
+    for (int i = startPoints[rank]; i < startPoints[rank] + linePerProc[rank]; i++) {
         vector[i] = A[i] - B[i];
     }
     MPI_Allreduce(vector, C, N, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     delete[](vector);
 }
 
-int CheckOnRepitition(double result, double e, int convergentMatrixRepetition) {
-    if (result < e) {
-        convergentMatrixRepetition++;
+void ColumnsDistribution(int* linePerProc, int* startPoints, int size, int N) {
+    int quotient = N / size; //Количество столбцов каждому процессу
+    int remainder = N % size; //Если столбцы не кратны кол-ву процессов
+    std::fill(linePerProc, linePerProc + size, quotient);
+    linePerProc[size - 1] += remainder;
+    startPoints[0] = 0;
+    for (int i = 1; i < size; ++i) {
+        startPoints[i] = startPoints[i - 1] + linePerProc[i - 1];
     }
-    else {
-        convergentMatrixRepetition = 0;
-    }
-    return convergentMatrixRepetition;
 }
 
-double SquaresSum(double* v, int N) {
-    double sum = 0;
+void FillU(double *u, int N) { //YEY
     for (int i = 0; i < N; i++) {
-        sum += v[i] * v[i];
+        u[i] = sin((2 * 3.14159 * i) / N);
     }
-    return sqrt(sum);
 }
 
-double EndCycleCriteria(double* A, double* x, double* b, double bVectorLenght, int N, int sizePerProcess, int rank) {
-    double vector[N];
-    MatrixAndVectorMultiplication(A, x, vector, N, sizePerProcess);
-    VectorsSubstruction(vector, b, vector, N, sizePerProcess, rank);
-    double result = SquaresSum(vector, N) / bVectorLenght;
-    return result;
-}
-
-void PrintMatrixA(double* A, int N) {
-    for (int i = 0; i < N; i++) {
+void FillMat(double *A, int N, int* startPoints, int* linePerProc, int rank) { //YEY
+    for (int i = 0; i < linePerProc[rank]; i++) {
         for (int j = 0; j < N; j++) {
-            std::cout << A[i * N + j] << " ";
-        }
-        std::cout << std::endl;
-    }
-    std::cout << " A[] " << std::endl << std::endl;;
-}
-
-void FillMatrixA(double *A, int N) {
-    for (int i = 0; i < N; i++) {
-        for (int j = 0; j < N; j++) {
-            if (i == j) {
+            if (i + startPoints[rank] == j) {
                 A[i * N + j] = 2;
-            }
-            else {
+            } else {
                 A[i * N + j] = 1;
             }
         }
     }
-
 }
 
 int main(int argc, char *argv[]) {
@@ -115,114 +88,119 @@ int main(int argc, char *argv[]) {
     MPI_Init(&argc, &argv); //Инициализация MPI
     MPI_Comm_size(MPI_COMM_WORLD, &size); //Получение числа процессов
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); //Получение номера процесса
-    int sizePerProcess = N / size;
-    auto* matrix = new double[N * N];
-    auto* A = new double[sizePerProcess * N];
-    auto* x = new double[N];
+
+    auto* linePerProc = new int[size];
+    auto* startPoints = new int[size];
+    ColumnsDistribution(linePerProc, startPoints, size, N);
+
+    auto* A = new double[linePerProc[rank] * N];
+    auto* currX = new double[N]; // xn+1
+    auto* prevX = new double[N]; // xn
     auto* b = new double[N];
     auto* y = new double[N];
-    auto* Ay = new double[N];
-    auto* ty = new double[N];
+    auto* Atmp = new double[N];
+    auto* tauY = new double[N];
     auto* u = new double[N];
-    double t;
+    double tau;
     double firstScalar;
     double secondScalar;
     double e = 1e-008;
-    int convergentMatrixRepetition = 0;
-    int notConvergentMatrixCounter = 0;
-    double previousResult = 0;
-    double bVectorLenght = 0;
-    bool nonConvergation;
+    double yVecLenght;
+    double bVecLenght;
 
-    if (rank == 0) {
-        FillMatrixA(matrix, N);
-        PrintMatrixA(matrix, N);
-    }
-
-    MPI_Scatter(matrix, sizePerProcess * N, MPI_DOUBLE, A, sizePerProcess * N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
-
-    for (int i = 0; i < N; i++) {
-        u[i] = sin((2 * 3.14159 * i) / N);
-    }
-
-    if (rank == 0) {
-        for (int i = 0; i < N; i++) {
-            std::cout << u[i] << " ";
-        }
-        std::cout << " u[]" << std::endl << std::endl;
-    }
-
-    MatrixAndVectorMultiplication(A, u, b, N, sizePerProcess);
-
-    if (rank == 0) {
-        PrintVector(b, N);
-        std::cout << " b[] " << std::endl << std::endl;
-    }
-
-    bVectorLenght = SquaresSum(b, N);
-    FillVectorWithZero(x, N); //x_0 = {0};
+    double result = 1;
+    double prevResult = 1;
+    bool diverge = false;
+    int divergenceCount = 0; //повторения расхождения матрицы
+    int convergentMatRepetition = 0; //повторения сходимости матрицы
+    int cycleIterations = 0;
 
 
-    double result = EndCycleCriteria(A, x, b, bVectorLenght, N, sizePerProcess, rank);
+    FillMat(A, N, startPoints, linePerProc, rank);
+    FillU(u, N);
 
-    int amountOfCycleIterations = 0;
+    MatVecMul(A, u, b, N, linePerProc, startPoints, rank);
+
+    std::fill(currX, currX + N, 0); //x_n+1 = {0};
+    std::fill(prevX, prevX + N, 0); //x_n = {0};
+
+    bVecLenght = sqrt(ScalProduct(b, b, linePerProc, startPoints, rank));
+
     double startMeasureTime = MPI_Wtime();
-    while ((result > e) && (convergentMatrixRepetition < CONVERGENCE)) {
-        amountOfCycleIterations++;
-        convergentMatrixRepetition = CheckOnRepitition(result, e, convergentMatrixRepetition);
-        previousResult = result;
+    while ((result > e) && (convergentMatRepetition < CONVERGENCE)) {
+        if (result < e) {
+            convergentMatRepetition++;
+        }
+        else {
+            convergentMatRepetition = 0;
+        }
 
-        MatrixAndVectorMultiplication(A, x, y, N, sizePerProcess); //y_n = Ax_n
-        VectorsSubstruction(y, b, y, N, sizePerProcess, rank); //y_n = Ax_n - b
-        MatrixAndVectorMultiplication(A, y, Ay, N, sizePerProcess); //Ay_n
-        firstScalar = ScalarVectorsMultiplication(y, Ay, sizePerProcess, rank); //(y_n, Ay_n)
-        secondScalar = ScalarVectorsMultiplication(Ay, Ay, sizePerProcess, rank);
-        t = firstScalar / secondScalar;
-        ScalarAndVectorMultiplication(t, y, ty, N, sizePerProcess, rank);
-        VectorsSubstruction(x, ty, x, N, sizePerProcess, rank); // x_n+1 = x_n - t_ny_n
+        MatVecMul(A, prevX, y, N, linePerProc, startPoints, rank); //y_n = Ax_n
+        yVecLenght = sqrt(ScalProduct(y, y, linePerProc, startPoints, rank));
+        VecSub(y, b, y, N, linePerProc, startPoints, rank); //y_n = Ax_n - b
+        MatVecMul(A, y, Atmp, N, linePerProc, startPoints, rank); //Ay_n
+        firstScalar = ScalProduct(y, Atmp, linePerProc, startPoints, rank); //(y_n, Ay_n)
+        secondScalar = ScalProduct(Atmp, Atmp, linePerProc, startPoints, rank);
+        tau = firstScalar / secondScalar;
+        VecByNumMul(tau, y, tauY, N, linePerProc, startPoints, rank);
+        VecSub(prevX, tauY, currX, N, linePerProc, startPoints, rank); // x_n+1 = x_n - t_ny_n
+        result = yVecLenght / bVecLenght;
 
-        result = EndCycleCriteria(A, x, b, bVectorLenght, N, sizePerProcess, rank);
-        if (previousResult < result) {
-            notConvergentMatrixCounter++;
-            if (notConvergentMatrixCounter > NONCONVERGENCE || previousResult == INFINITY) {
-                nonConvergation = true;
+        if (prevResult < result) {
+            divergenceCount++;
+            if (divergenceCount > NONCONVERGENCE || prevResult == INFINITY) {
+                diverge = true;
                 break;
             }
         }
         else {
-            notConvergentMatrixCounter = 0;
+            divergenceCount = 0;
         }
+        prevResult = result;
+        for (int i = 0; i < linePerProc[rank]; i++) {
+            prevX[i] = currX[i];
+        }
+        cycleIterations++;
     }
     double endMeasureTime = MPI_Wtime();
 
-    if (nonConvergation) {
+    if (diverge) {
         std::cout << "Impossible task! Matrix is not convergent!" << std::endl;
+
         delete[](u);
-        delete[](ty);
-        delete[](Ay);
+        delete[](tauY);
+        delete[](Atmp);
         delete[](y);
         delete[](b);
-        delete[](x);
+        delete[](prevX);
+        delete[](currX);
         delete[](A);
+        delete[](startPoints);
+        delete[](linePerProc);
         MPI_Finalize(); //Завершение работы MPI
         return 0;
     }
 
     if (rank == 0) {
-        PrintVector(x, N);
+        PrintVec(u, N);
+        std::cout << " u[] " << std::endl << std::endl;
+        PrintVec(currX, N);
         std::cout << " x[] " << std::endl << std::endl;
 
         std::cout << "Amount of processes is: " << size << std::endl << std::endl;
-        std::cout << "Amount of iterations: " << amountOfCycleIterations + 1 << std::endl;
+        std::cout << "Amount of iterations: " << cycleIterations + 1 << std::endl;
         std::cout << "Total time is: " << endMeasureTime - startMeasureTime << " seconds" << std::endl;
     }
     delete[](u);
-    delete[](ty);
-    delete[](Ay);
+    delete[](tauY);
+    delete[](Atmp);
     delete[](y);
     delete[](b);
-    delete[](x);
+    delete[](prevX);
+    delete[](currX);
     delete[](A);
+    delete[](startPoints);
+    delete[](linePerProc);
     MPI_Finalize(); //Завершение работы MPI
     return 0;
 }
