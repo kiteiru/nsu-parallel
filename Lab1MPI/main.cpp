@@ -5,13 +5,13 @@
 #define CONVERGENCE 5
 #define NONCONVERGENCE 5
 
-void PrintVector(double* vector, int N) {
+void PrintVec(double* vector, int N) {
     for (int i = 0; i < N; i++) {
         std::cout << vector[i] << " ";
     }
 }
 
-void MatrixAndVectorMultiplication(double* A, double* B, double* C, int N) {
+void MatVecMul(double* A, double* B, double* C, int N) {
     for (int i = 0; i < N; i++) {
         C[i] = 0;
         for (int j = 0; j < N; j++) {
@@ -20,7 +20,7 @@ void MatrixAndVectorMultiplication(double* A, double* B, double* C, int N) {
     }
 }
 
-double ScalarVectorsMultiplication(double* A, double* B, int N) {
+double ScalProduct(double* A, double* B, int N) {
     double C = 0;
     for (int i = 0; i < N; i++) {
         C += A[i] * B[i];
@@ -28,61 +28,25 @@ double ScalarVectorsMultiplication(double* A, double* B, int N) {
     return C;
 }
 
-void ScalarAndVectorMultiplication(double A, double* B, double* C, int N) {
+void VecByNumMul(double A, double* B, double* C, int N) {
     for (int i = 0; i < N; i++) {
         C[i] = A * B[i];
     }
 }
 
-void VectorsSubstruction(double* A, double* B, double* C, int N) {
+void VecSub(double* A, double* B, double* C, int N) {
     for (int i = 0; i < N; i++) {
         C[i] = A[i] - B[i];
     }
 }
 
-int CheckOnRepitition(double result, double e, int convergentMatrixRepetition) {
-    if (result < e) {
-        convergentMatrixRepetition++;
-    }
-    else {
-        convergentMatrixRepetition = 0;
-    }
-    return convergentMatrixRepetition;
-}
-
-void FillVectorWithZero(double* vector, int N) {
+void FillU(double *u, int N) {
     for (int i = 0; i < N; i++) {
-        vector[i] = 0;
+        u[i] = sin((2 * 3.14159 * i) / N);
     }
 }
 
-double SquaresSum(double* v, int N) {
-    double sum = 0;
-    for (int i = 0; i < N; i++) {
-        sum += v[i] * v[i];
-    }
-    return sqrt(sum);
-}
-
-double EndCycleCriteria(double* A, double* x, double* b, double bVectorLenght, int N) {
-    double vector[N];
-    MatrixAndVectorMultiplication(A, x, vector, N);
-    VectorsSubstruction(vector, b, vector, N);
-    double result = SquaresSum(vector, N) / bVectorLenght;
-    return result;
-}
-
-void PrintMatrixA(double* A, int N) {
-    for (int i = 0; i < N; i++) {
-        for (int j = 0; j < N; j++) {
-            std::cout << A[i * N + j] << " ";
-        }
-        std::cout << std::endl;
-    }
-    std::cout << " A[] " << std::endl << std::endl;;
-}
-
-void FillMatrixA(double* A, int N) {
+void FillMat(double* A, int N) {
     for (int i = 0; i < N; i++) {
         for (int j = 0; j < N; j++) {
             if (i == j) {
@@ -98,95 +62,101 @@ void FillMatrixA(double* A, int N) {
 int main(int argc, char *argv[]) {
     int N = atoi(argv[1]);
     auto* A = new double[N * N];
-    auto* x = new double[N];
+    auto* currX = new double[N]; // xn+1
+    auto* prevX = new double[N]; // xn
     auto* b = new double[N];
     auto* y = new double[N];
-    auto* Ay = new double[N];
-    auto* ty = new double[N];
+    auto* Atmp = new double[N];
+    auto* tauY = new double[N];
     auto* u = new double[N];
-    double t;
+    double tau;
     double firstScalar;
     double secondScalar;
     double e = 1e-008;
-    int convergentMatrixRepetition = 0;
-    int notConvergentMatrixCounter = 0;
-    double previousResult = 0;
-    double bVectorLenght = 0;
-    bool nonConvergation;
+    double yVecLenght;
+    double bVecLenght;
 
-    FillMatrixA(A, N);
-    //PrintMatrixA(A, N);
+    double result = 1;
+    double prevResult = 1;
+    bool diverge = false;
+    int divergenceCount = 0; //повторения расхождения матрицы
+    int convergentMatRepetition = 0; //повторения сходимости матрицы
+    int cycleIterations = 0;
 
-    for (int i = 0; i < N; i++) {
-        u[i] = sin((2 * 3.14159 * i) / N);
-        std::cout << u[i] << " ";
-    }
-    std::cout << " u[]" << std::endl << std::endl;
+    FillMat(A, N);
+    FillU(u, N);
 
-    MatrixAndVectorMultiplication(A, u, b, N);
+    MatVecMul(A, u, b, N);
 
-    //PrintVector(b, N);
-    //std::cout << " b[] " << std::endl << std::endl;
+    std::fill(currX, currX + N, 0); //x_n+1 = {0};
+    std::fill(prevX, prevX + N, 0); //x_n = {0};
 
-    bVectorLenght = SquaresSum(b, N);
+    bVecLenght = sqrt(ScalProduct(b, b, N));
 
-    FillVectorWithZero(x, N); //x_0 = {0};
-
-    double result = EndCycleCriteria(A, x, b, bVectorLenght, N);
-
-    int amountOfIterations = 0;
     long double startMeasureTime = clock();
-    while ((result > e) && (convergentMatrixRepetition < CONVERGENCE)) {
-        amountOfIterations++;
-        convergentMatrixRepetition = CheckOnRepitition(result, e, convergentMatrixRepetition);
-        previousResult = result;
+    while ((result > e) && (convergentMatRepetition < CONVERGENCE)) {
+        if (result < e) {
+            convergentMatRepetition++;
+        }
+        else {
+            convergentMatRepetition = 0;
+        }
 
-        MatrixAndVectorMultiplication(A, x, y, N); //y_n = Ax_n
-        VectorsSubstruction(y, b, y, N); //y_n = Ax_n - b
-        MatrixAndVectorMultiplication(A, y, Ay, N); //Ay_n
-        firstScalar = ScalarVectorsMultiplication(y, Ay, N); //(y_n, Ay_n)
-        secondScalar = ScalarVectorsMultiplication(Ay, Ay, N);
-        t = firstScalar / secondScalar;
-        ScalarAndVectorMultiplication(t, y, ty, N);
-        VectorsSubstruction(x, ty, x, N); // x_n+1 = x_n - t_ny_n
+        MatVecMul(A, prevX, y, N); //y_n = Ax_n
+        yVecLenght = sqrt(ScalProduct(y, y, N));
+        VecSub(y, b, y, N); //y_n = Ax_n - b
+        MatVecMul(A, y, Atmp, N); //Ay_n
+        firstScalar = ScalProduct(y, Atmp, N); //(y_n, Ay_n)
+        secondScalar = ScalProduct(Atmp, Atmp, N);
+        tau = firstScalar / secondScalar;
+        VecByNumMul(tau, y, tauY, N);
+        VecSub(prevX, tauY, currX, N); // x_n+1 = x_n - t_ny_n
+        result = yVecLenght / bVecLenght;
 
-        result = EndCycleCriteria(A, x, b, bVectorLenght, N);
-        std::cout << "Result is: " << result << std::endl;
-        if (previousResult < result) {
-            notConvergentMatrixCounter++;
-            if (notConvergentMatrixCounter > NONCONVERGENCE || previousResult == INFINITY) {
-                nonConvergation = true;
+        if (prevResult < result) {
+            divergenceCount++;
+            if (divergenceCount > NONCONVERGENCE || prevResult == INFINITY) {
+                diverge = true;
                 break;
             }
         }
         else {
-            notConvergentMatrixCounter = 0;
+            divergenceCount = 0;
         }
+        prevResult = result;
+        for (int i = 0; i < N; i++) {
+            prevX[i] = currX[i];
+        }
+        cycleIterations++;
     }
     long double endMeasureTime = clock();
 
-    if (nonConvergation) {
+    if (diverge) {
         std::cout << "Impossible task! Matrix is not convergent!" << std::endl;
         delete[](u);
-        delete[](ty);
-        delete[](Ay);
+        delete[](tauY);
+        delete[](Atmp);
         delete[](y);
         delete[](b);
-        delete[](x);
+        delete[](prevX);
+        delete[](currX);
         delete[](A);
         return 0;
     }
-    PrintVector(x, N);
+    PrintVec(u, N);
+    std::cout << " u[] " << std::endl << std::endl;
+    PrintVec(currX, N);
     std::cout << " x[] " << std::endl << std::endl;
 
     std::cout << "Total time is: " << (endMeasureTime - startMeasureTime) / 1000000 << " seconds" << std::endl;
-    std::cout << "Iterations: " << amountOfIterations + 1 << std::endl;
+    std::cout << "Iterations: " << cycleIterations + 1 << std::endl;
     delete[](u);
-    delete[](ty);
-    delete[](Ay);
+    delete[](tauY);
+    delete[](Atmp);
     delete[](y);
     delete[](b);
-    delete[](x);
+    delete[](prevX);
+    delete[](currX);
     delete[](A);
     return 0;
 }
