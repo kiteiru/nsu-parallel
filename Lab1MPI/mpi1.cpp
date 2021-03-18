@@ -9,6 +9,7 @@ void PrintVec(double* vector, int N) {
     for (int i = 0; i < N; i++) {
         std::cout << vector[i] << " ";
     }
+    std::cout << std::endl;
 }
 
 void MatVecMul(double* A, double* B, double* C, int N, int* linePerProc, int* startPoints, int rank) {
@@ -140,10 +141,10 @@ int main(int argc, char *argv[]) {
         VecSub(y, b, y, N, linePerProc, startPoints, rank); //y_n = Ax_n - b
         MatVecMul(A, y, Atmp, N, linePerProc, startPoints, rank); //Ay_n
         firstScalar = ScalProduct(y, Atmp, linePerProc, startPoints, rank); //(y_n, Ay_n)
-        secondScalar = ScalProduct(Atmp, Atmp, linePerProc, startPoints, rank);
+        secondScalar = ScalProduct(Atmp, Atmp, linePerProc, startPoints, rank); //(Ay_n, Ay_n)
         tau = firstScalar / secondScalar;
         VecByNumMul(tau, y, tauY, N, linePerProc, startPoints, rank);
-        VecSub(prevX, tauY, currX, N, linePerProc, startPoints, rank); // x_n+1 = x_n - t_ny_n
+        VecSub(prevX, tauY, currX, N, linePerProc, startPoints, rank); //x_n+1 = x_n - t_ny_n
         result = yVecLenght / bVecLenght;
 
         if (prevResult < result) {
@@ -165,8 +166,7 @@ int main(int argc, char *argv[]) {
     double endMeasureTime = MPI_Wtime();
 
     if (diverge) {
-        std::cout << "Impossible task! Matrix is not convergent!" << std::endl;
-
+        std::cout << "Impossible task (╥﹏╥)" << std::endl << "Matrix is not convergent!" << std::endl;
         delete[](u);
         delete[](tauY);
         delete[](Atmp);

@@ -9,32 +9,30 @@ void PrintVec(double* vector, int N) { //YEY
     for (int i = 0; i < N; i++) {
         std::cout << vector[i] << " ";
     }
+    std::cout << std::endl;
 }
 
-
-void MatVecMul(const double *A, double *B,  double *C, int *linePerProc, int *startPoints, int N, int rank) {
-    auto *tmpVec = new double[N];
+void MatVecMul(double *A, double *B, double *C, int *linePerProc, int N, int rank) {
+    auto *tmp = new double[N];
     for (int i = 0; i < N; i++) {
-
         double mulSum = 0;
         for (int j = 0; j < linePerProc[rank]; j++) {
             mulSum += A[j * N + i] * B[j];
         }
-        tmpVec[i] = mulSum;
+        tmp[i] = mulSum;
     }
-    MPI_Allreduce(tmpVec, C, N, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-
-    delete[](tmpVec);
+    MPI_Allreduce(tmp, C, N, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    delete[](tmp);
 }
 
-double ScalProduct(const double *A, const double *B, int *linePerProc, int rank) { //YEY
-    double partialSum = 0;
-    double C;
-    for (int i = 0; i < linePerProc[rank]; i++) {
-        partialSum += A[i] * B[i];
+double ScalProduct(double *vec1, double *vec2, const int *linePerProc, int rank) {
+    double sum = 0;
+    for (int i = 0; i < linePerProc[rank]; ++i) {
+        sum += vec1[i] * vec2[i];
     }
-    MPI_Allreduce(&partialSum, &C, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    return C;
+    double fullSum;
+    MPI_Allreduce(&sum, &fullSum, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    return fullSum;
 }
 
 void VecByNumMul(double A, double *B, double *C, int *linePerProc, int rank) { //YEY
@@ -43,7 +41,7 @@ void VecByNumMul(double A, double *B, double *C, int *linePerProc, int rank) { /
     }
 }
 
-void VecSub(const double *A, const double *B, double *C, int *linePerProc, int rank) { //YEY
+void VecSub(double *A, double *B, double *C, const int *linePerProc, int rank) {
     for (int i = 0; i < linePerProc[rank]; i++) {
         C[i] = A[i] - B[i];
     }
@@ -80,31 +78,32 @@ void FillMat(double *A, int N, int* startPoints, int* linePerProc, int rank) { /
 
 int main(int argc, char *argv[]) {
     int N = atoi(argv[1]);
+    MPI_Init(&argc, &argv);
     int size, rank;
-    MPI_Init(&argc, &argv); //Инициализация MPI
-    MPI_Comm_size(MPI_COMM_WORLD, &size); //Получение числа процессов
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank); //Получение номера процесса
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    auto* linePerProc = new int[size];
-    auto* startPoints = new int[size];
+    int linePerProc[size];
+    int startPoints[size];
     ColumnsDistribution(linePerProc, startPoints, size, N);
 
-    auto* A = new double[linePerProc[rank] * N];
-    auto* u = new double[linePerProc[rank]];
+    auto *A = new double[linePerProc[rank] * N];
+    auto *u = new double[linePerProc[rank]];
     auto* fullU = new double[N];
-    auto* b = new double[linePerProc[rank]];
-    auto* currX = new double[linePerProc[rank]]; // xn+1
-    auto* prevX = new double[linePerProc[rank]]; // xn
-    auto* fullX = new double[N];
-    auto* Atmp = new double[linePerProc[rank]];
-    auto* y = new double[linePerProc[rank]];
-    auto* tauY = new double[linePerProc[rank]];
+    auto *b = new double[linePerProc[rank]];
+    auto *currX = new double[linePerProc[rank]]; // xn+1
+    auto *prevX = new double[linePerProc[rank]]; // xn
+    auto *fullX = new double[N];
+    auto *Atmp = new double[linePerProc[rank]];
+    auto *y = new double[linePerProc[rank]];
+    auto *tauY = new double[linePerProc[rank]];
+    auto *temp = new double[N];
     double tau;
     double firstScalar;
     double secondScalar;
     double e = 1e-008;
-    double yVecLenght;
     double bVecLenght;
+    double yVecLenght;
 
     double result = 1;
     double prevResult = 1;
@@ -116,43 +115,31 @@ int main(int argc, char *argv[]) {
     FillMat(A, N, startPoints, linePerProc, rank);
     FillUVec(u, N, startPoints, linePerProc, rank);
     std::fill(currX, currX + linePerProc[rank], 0);
-
-    PrintVec(currX, linePerProc[rank]);
-
     std::fill(prevX, prevX + linePerProc[rank], 0);
 
-    auto* temp = new double[N];
-
-    MatVecMul(A, u, temp, linePerProc, startPoints, N, rank);
+    MatVecMul(A, u, temp, linePerProc, N, rank);
     MPI_Scatterv(temp, linePerProc, startPoints, MPI_DOUBLE, b, linePerProc[rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
     bVecLenght = sqrt(ScalProduct(b, b, linePerProc, rank));
 
     double startMeasureTime = MPI_Wtime();
-    while ((result > e) && (convergentMatRepetition < CONVERGENCE)) {
+    while (result >= e && convergentMatRepetition < 5) {
         if (result < e) {
-            convergentMatRepetition++;
-        }
-        else {
+            ++convergentMatRepetition;
+        } else {
             convergentMatRepetition = 0;
         }
 
-        MatVecMul(A, prevX, temp, linePerProc, startPoints, N, rank);
-        MPI_Scatterv(temp, linePerProc, startPoints, MPI_DOUBLE, y, linePerProc[rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
-
-        yVecLenght = sqrt(ScalProduct(y, y, linePerProc, rank));
-        VecSub(y, b, y, linePerProc, rank);
-
-        MatVecMul(A, y, temp, linePerProc, startPoints, N, rank);
+        MatVecMul(A, prevX, temp, linePerProc, N, rank); //y_n = Ax_n
         MPI_Scatterv(temp, linePerProc, startPoints, MPI_DOUBLE, Atmp, linePerProc[rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
-
-        firstScalar = ScalProduct(y, Atmp, linePerProc, rank);
-        secondScalar = ScalProduct(Atmp, Atmp, linePerProc, rank);
+        VecSub(Atmp, b, y, linePerProc, rank); //y_n = Ax_n - b
+        yVecLenght = sqrt(ScalProduct(y, y, linePerProc, rank));
+        MatVecMul(A, y, temp, linePerProc, N, rank); //Ay_n
+        MPI_Scatterv(temp, linePerProc, startPoints, MPI_DOUBLE, Atmp, linePerProc[rank], MPI_DOUBLE, 0, MPI_COMM_WORLD);
+        firstScalar = ScalProduct(y, Atmp, linePerProc, rank); //(y_n, Ay_n)
+        secondScalar = ScalProduct(Atmp, Atmp, linePerProc, rank); //(Ay_n, Ay_n)
         tau = firstScalar / secondScalar;
-        VecByNumMul(tau, y, tauY, linePerProc, rank);
-        VecSub(prevX, tauY, currX, linePerProc, rank);
-
-        PrintVec(currX, linePerProc[rank]);
-
+        VecByNumMul(tau, y , tauY, linePerProc, rank);
+        VecSub(prevX, tauY, currX, linePerProc, rank); //x_n+1 = x_n - t_ny_n
         result = yVecLenght / bVecLenght;
 
         if (prevResult < result) {
@@ -175,18 +162,16 @@ int main(int argc, char *argv[]) {
     double endMeasureTime = MPI_Wtime();
 
     if (diverge) {
-        std::cout << "Impossible task! Matrix is not convergent!" << std::endl;
-        delete[](prevX);
-        delete[](Atmp);
-        delete[](y);
+        std::cout << "Impossible task (╥﹏╥)" << std::endl << "Matrix is not convergent!" << std::endl;
+        delete[](temp);
         delete[](tauY);
-        delete[](fullX);
-        delete[](fullU);
-        delete[](u);
-        delete[](startPoints);
-        delete[](linePerProc);
+        delete[](y);
+        delete[](Atmp);
+        delete[](prevX);
         delete[](currX);
         delete[](b);
+        delete[](fullU);
+        delete[](u);
         delete[](A);
         MPI_Finalize();
         return 0;
@@ -196,28 +181,25 @@ int main(int argc, char *argv[]) {
     currX = fullX;
     MPI_Gatherv(u, linePerProc[rank], MPI_DOUBLE, fullU, linePerProc, startPoints, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-
     if (rank == 0) {
         PrintVec(fullU, N);
         std::cout << "u[]" << std::endl << std::endl;
-        PrintVec(fullX, N);
+        PrintVec(currX, N);
         std::cout << "x[]" << std::endl << std::endl;
 
         std::cout << "Amount of processes is: " << size << std::endl << std::endl;
         std::cout << "Amount of iterations: " << cycleIterations << std::endl;
-        std::cout << "Total time is: " << endMeasureTime - startMeasureTime << " seconds" << std::endl;
+        std::cout << "Total time is: " << endMeasureTime - startMeasureTime << "seconds" << std::endl;
     }
-
-    delete[](prevX);
-    delete[](Atmp);
-    delete[](y);
+    delete[](temp);
     delete[](tauY);
-    delete[](fullU);
-    delete[](u);
-    delete[](startPoints);
-    delete[](linePerProc);
+    delete[](y);
+    delete[](Atmp);
+    delete[](prevX);
     delete[](currX);
     delete[](b);
+    delete[](fullU);
+    delete[](u);
     delete[](A);
     MPI_Finalize();
     return 0;

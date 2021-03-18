@@ -107,7 +107,7 @@ int main(int argc, char *argv[]) {
         VecSub(y, b, y, N); //y_n = Ax_n - b
         MatVecMul(A, y, Atmp, N); //Ay_n
         firstScalar = ScalProduct(y, Atmp, N); //(y_n, Ay_n)
-        secondScalar = ScalProduct(Atmp, Atmp, N);
+        secondScalar = ScalProduct(Atmp, Atmp, N); //(Ay_n, Ay_n)
         tau = firstScalar / secondScalar;
         VecByNumMul(tau, y, tauY, N);
         VecSub(prevX, tauY, currX, N); // x_n+1 = x_n - t_ny_n
@@ -132,7 +132,7 @@ int main(int argc, char *argv[]) {
     long double endMeasureTime = clock();
 
     if (diverge) {
-        std::cout << "Impossible task! Matrix is not convergent!" << std::endl;
+        std::cout << "Impossible task (╥﹏╥)" << std::endl << "Matrix is not convergent!" << std::endl;
         delete[](u);
         delete[](tauY);
         delete[](Atmp);
@@ -148,8 +148,8 @@ int main(int argc, char *argv[]) {
     PrintVec(currX, N);
     std::cout << " x[] " << std::endl << std::endl;
 
+    std::cout << "Amount of iterations: " << cycleIterations << std::endl;
     std::cout << "Total time is: " << (endMeasureTime - startMeasureTime) / 1000000 << " seconds" << std::endl;
-    std::cout << "Iterations: " << cycleIterations + 1 << std::endl;
     delete[](u);
     delete[](tauY);
     delete[](Atmp);
