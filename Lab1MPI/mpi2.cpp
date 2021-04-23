@@ -14,18 +14,17 @@ void PrintVec(double* vector, int N) { //YEY
 
 void MatVecMul(double *A, double *B, double *C, int *linePerProc, int N, int rank) {
     auto *tmp = new double[N];
-    for (int i = 0; i < N; i++) {
-        double mulSum = 0;
-        for (int j = 0; j < linePerProc[rank]; j++) {
-            mulSum += A[j * N + i] * B[j];
+    std::fill(tmp, tmp + N, 0);
+    for (int i = 0; i < linePerProc[rank]; i++) {
+        for (int j = 0; j < N; j++) {
+            tmp[j] += A[i * N + j] * B[i];
         }
-        tmp[i] = mulSum;
     }
     MPI_Allreduce(tmp, C, N, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     delete[](tmp);
 }
 
-double ScalProduct(double *vec1, double *vec2, const int *linePerProc, int rank) {
+double ScalProduct(double *vec1, double *vec2, int *linePerProc, int rank) {
     double sum = 0;
     for (int i = 0; i < linePerProc[rank]; ++i) {
         sum += vec1[i] * vec2[i];
@@ -41,7 +40,7 @@ void VecByNumMul(double A, double *B, double *C, int *linePerProc, int rank) { /
     }
 }
 
-void VecSub(double *A, double *B, double *C, const int *linePerProc, int rank) {
+void VecSub(double *A, double *B, double *C, int *linePerProc, int rank) {
     for (int i = 0; i < linePerProc[rank]; i++) {
         C[i] = A[i] - B[i];
     }
@@ -122,7 +121,7 @@ int main(int argc, char *argv[]) {
     bVecLenght = sqrt(ScalProduct(b, b, linePerProc, rank));
 
     double startMeasureTime = MPI_Wtime();
-    while (result >= e && convergentMatRepetition < 5) {
+    while (result >= e && convergentMatRepetition < CONVERGENCE) {
         if (result < e) {
             ++convergentMatRepetition;
         } else {
@@ -152,7 +151,6 @@ int main(int argc, char *argv[]) {
         else {
             divergenceCount = 0;
         }
-
         prevResult = result;
         for (int i = 0; i < linePerProc[rank]; i++) {
             prevX[i] = currX[i];

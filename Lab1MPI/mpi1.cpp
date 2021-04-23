@@ -128,7 +128,7 @@ int main(int argc, char *argv[]) {
     bVecLenght = sqrt(ScalProduct(b, b, linePerProc, startPoints, rank));
 
     double startMeasureTime = MPI_Wtime();
-    while ((result > e) && (convergentMatRepetition < CONVERGENCE)) {
+    while (result >= e && convergentMatRepetition < CONVERGENCE) {
         if (result < e) {
             convergentMatRepetition++;
         }
@@ -149,7 +149,7 @@ int main(int argc, char *argv[]) {
 
         if (prevResult < result) {
             divergenceCount++;
-            if (divergenceCount > NONCONVERGENCE || prevResult == INFINITY) {
+            if (divergenceCount > NONCONVERGENCE || result == INFINITY) {
                 diverge = true;
                 break;
             }
@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
             divergenceCount = 0;
         }
         prevResult = result;
-        for (int i = 0; i < linePerProc[rank]; i++) {
+        for (int i = 0; i < N; i++) {
             prevX[i] = currX[i];
         }
         cycleIterations++;
